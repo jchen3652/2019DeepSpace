@@ -23,71 +23,81 @@ import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class RobotState {
-	private static RobotState instance = new RobotState();
-	public static RobotState getInstance(){
-		return instance;
-	}
-	
-	private static final int kObservationBufferSize = 100;
-	
-	private InterpolatingTreeMap<InterpolatingDouble, Pose2d> field_to_vehicle_;
-	private GoalTracker goal_tracker_;
-	private Rotation2d camera_pitch_correction_;
+    private static RobotState instance = new RobotState();
+
+    public static RobotState getInstance() {
+        return instance;
+    }
+
+    private static final int kObservationBufferSize = 100;
+
+    private InterpolatingTreeMap<InterpolatingDouble, Pose2d> field_to_vehicle_;
+    private GoalTracker goal_tracker_;
+    private Rotation2d camera_pitch_correction_;
     private Rotation2d camera_yaw_correction_;
     private double differential_height_;
     private double targetHeight = Constants.kDiskTargetHeight;
-	private double distance_driven_;
+    private double distance_driven_;
     private ShooterAimingParameters cached_shooter_aiming_params_ = null;
-    
+
     public final int minimumTargetQuantity = 3;
     private final int primaryTargetIndex = 2;
     private Translation2d lastKnownTargetPosition = new Translation2d();
-    public Translation2d lastKnownTargetPosition(){ return lastKnownTargetPosition; }
 
-    public double distanceToTarget(){
+    public Translation2d lastKnownTargetPosition() {
+        return lastKnownTargetPosition;
+    }
+
+    public double distanceToTarget() {
         return getLatestFieldToVehicle().getValue().getTranslation().distance(lastKnownTargetPosition);
     }
 
     Alliance alliance = SmartDashboardInteractions.STANDARD_CARPET_SIDE;
-    public void setAlliance(Alliance a){
+
+    public void setAlliance(Alliance a) {
         alliance = a;
     }
-    public Alliance getAlliance(){
+
+    public Alliance getAlliance() {
         return alliance;
     }
-    public boolean onStandardCarpet(){
+
+    public boolean onStandardCarpet() {
         return alliance == SmartDashboardInteractions.STANDARD_CARPET_SIDE;
     }
 
     private boolean seesTarget = false;
-    public boolean seesTarget(){
+
+    public boolean seesTarget() {
         return seesTarget;
     }
-	
-	private double angleToCube = 0;
-	public double getAngleToCube(){
-		return angleToCube;
-	}
-	public void setAngleToCube(double angle){
-		angleToCube = angle;
-	}
-	
-	public Translation2d getCubePosition(){
-		List<TrackReport> reports = goal_tracker_.getTracks();
-		if(!reports.isEmpty())
-			return goal_tracker_.getTracks().get(0).field_to_goal;
-		else
-			return new Translation2d();
-	}
-	
-	private static final Pose2d kVehicleToCamera = new Pose2d(
+
+    private double angleToCube = 0;
+
+    public double getAngleToCube() {
+        return angleToCube;
+    }
+
+    public void setAngleToCube(double angle) {
+        angleToCube = angle;
+    }
+
+    public Translation2d getCubePosition() {
+        List<TrackReport> reports = goal_tracker_.getTracks();
+        if (!reports.isEmpty())
+            return goal_tracker_.getTracks().get(0).field_to_goal;
+        else
+            return new Translation2d();
+    }
+
+    private static final Pose2d kVehicleToCamera = new Pose2d(
             new Translation2d(Constants.kCameraXOffset, Constants.kCameraYOffset), Rotation2d.fromDegrees(0.0));
-	
-	private RobotState() {
+
+    private RobotState() {
         reset(0, new Pose2d());
     }
-	
-	/**
+
+    /**
      * Resets the field to robot transform (robot's position on the field)
      */
     public synchronized void reset(double start_time, Pose2d initial_field_to_vehicle) {
@@ -99,23 +109,23 @@ public class RobotState {
         differential_height_ = targetHeight - Constants.kCameraZOffset;
         distance_driven_ = 0.0;
     }
-    
+
     public synchronized void resetDistanceDriven() {
         distance_driven_ = 0.0;
     }
 
-    public synchronized void setVisionTargetHeight(double height){
+    public synchronized void setVisionTargetHeight(double height) {
         targetHeight = height;
         differential_height_ = height - Constants.kCameraZOffset;
     }
 
-    public double getVisionTargetHeight(){
+    public double getVisionTargetHeight() {
         return targetHeight;
     }
-    
+
     /**
-     * Returns the robot's position on the field at a certain time. Linearly interpolates between stored robot positions
-     * to fill in the gaps.
+     * Returns the robot's position on the field at a certain time. Linearly
+     * interpolates between stored robot positions to fill in the gaps.
      */
     public synchronized Pose2d getFieldToVehicle(double timestamp) {
         return field_to_vehicle_.getInterpolated(new InterpolatingDouble(timestamp));
@@ -124,23 +134,32 @@ public class RobotState {
     public synchronized Map.Entry<InterpolatingDouble, Pose2d> getLatestFieldToVehicle() {
         return field_to_vehicle_.lastEntry();
     }
-    
+
     public synchronized Pose2d getFieldToCamera(double timestamp) {
         return getFieldToVehicle(timestamp).transformBy(kVehicleToCamera);
     }
 
-    public void setXTarget(double x, double error){
+    public void setXTarget(double x, double error) {
         goal_tracker_.setXTarget(x, error);
     }
 
-    public void enableXTarget(boolean enable){
+    public void enableXTarget(boolean enable) {
         goal_tracker_.enableXTarget(enable);
     }
-    
+
+    // TODO this is the real shit
+    /**
+     * Processes target information objects into pose2d objects of the field
+     * relative to the robot which are stored in
+     * 
+     * @param timestamp
+     * @param vision_update Target infos to be processed
+     */
     public void addVisionUpdate(double timestamp, List<TargetInfo> vision_update) {
+
         List<Translation2d> field_to_goals = new ArrayList<>();
         Pose2d field_to_camera = getFieldToCamera(timestamp);
-        if (/*!(vision_update == null || vision_update.isEmpty())*/ vision_update.size() >= minimumTargetQuantity) {
+        if (/* !(vision_update == null || vision_update.isEmpty()) */ vision_update.size() >= minimumTargetQuantity) {
             seesTarget = true;
             for (TargetInfo target : vision_update) {
                 double ydeadband = target.getY();
@@ -154,30 +173,33 @@ public class RobotState {
                 double xr = zyaw * camera_pitch_correction_.sin() + xyaw * camera_pitch_correction_.cos();
                 double yr = yyaw;
                 double zr = zyaw * camera_pitch_correction_.cos() - xyaw * camera_pitch_correction_.sin();
-                
+
                 // find intersection with the goal
-                //if (zr < 0) {
-                    double scaling = differential_height_ / zr;
-                    double distance = Math.hypot(xr, yr) * scaling;
-                    Rotation2d angle = new Rotation2d(xr, yr, true);
-                    field_to_goals.add(field_to_camera
-                            .transformBy(Pose2d
-                                    .fromTranslation(new Translation2d(distance * angle.cos(), distance * angle.sin())))
-                            .getTranslation());
-                //}
+                // if (zr < 0) {
+                double scaling = differential_height_ / zr;
+
+                double distance = Math.hypot(xr, yr) * scaling; // Distance to target
+
+                Rotation2d angle = new Rotation2d(xr, yr, true);
+                // TODO: figure out why they use these frames of reference
+                field_to_goals.add(field_to_camera
+                        .transformBy(Pose2d
+                                .fromTranslation(new Translation2d(distance * angle.cos(), distance * angle.sin())))
+                        .getTranslation());
+                // }
             }
-        }else{
+        } else {
             seesTarget = false;
         }
         synchronized (this) {
             goal_tracker_.update(timestamp, field_to_goals);
         }
     }
-    
+
     public synchronized Optional<ShooterAimingParameters> getCachedAimingParameters() {
         return cached_shooter_aiming_params_ == null ? Optional.empty() : Optional.of(cached_shooter_aiming_params_);
     }
-    
+
     public synchronized Optional<ShooterAimingParameters> getAimingParameters() {
         List<TrackReport> reports = goal_tracker_.getTracks();
         if (reports.size() >= minimumTargetQuantity) {
@@ -185,9 +207,12 @@ public class RobotState {
             lastKnownTargetPosition = report.field_to_goal;
             Translation2d robot_to_goal = getLatestFieldToVehicle().getValue().getTranslation().inverse()
                     .translateBy(report.field_to_goal);
-            Rotation2d targetOrientation1 = getTargetOrientation(reports.get(0).field_to_goal, reports.get(1).field_to_goal);
-            Rotation2d targetOrientation2 = getTargetOrientation(reports.get(0).field_to_goal, reports.get(2).field_to_goal);
-            Rotation2d targetOrientation3 = getTargetOrientation(reports.get(1).field_to_goal, reports.get(2).field_to_goal);
+            Rotation2d targetOrientation1 = getTargetOrientation(reports.get(0).field_to_goal,
+                    reports.get(1).field_to_goal);
+            Rotation2d targetOrientation2 = getTargetOrientation(reports.get(0).field_to_goal,
+                    reports.get(2).field_to_goal);
+            Rotation2d targetOrientation3 = getTargetOrientation(reports.get(1).field_to_goal,
+                    reports.get(2).field_to_goal);
 
             Rotation2d targetOrientation = targetOrientation1;
             Rotation2d robot_to_goal_rotation = Rotation2d
@@ -204,57 +229,66 @@ public class RobotState {
         }
     }
 
-    private Rotation2d getTargetOrientation(Translation2d target1, Translation2d target2){
+    private Rotation2d getTargetOrientation(Translation2d target1, Translation2d target2) {
         Translation2d targetDelta = target1.inverse().translateBy(target2);
-        Rotation2d targetOrientation = Rotation2d.fromRadians(Math.atan2(targetDelta.y(), targetDelta.x())).rotateBy(Rotation2d.fromDegrees(-90.0));
+        Rotation2d targetOrientation = Rotation2d.fromRadians(Math.atan2(targetDelta.y(), targetDelta.x()))
+                .rotateBy(Rotation2d.fromDegrees(-90.0));
         Rotation2d secondTargetOrientation = targetOrientation.rotateBy(Rotation2d.fromDegrees(180.0));
-        if(Math.abs(targetOrientation.distance(getLatestFieldToVehicle().getValue().getRotation())) > Math.abs(secondTargetOrientation.distance(getLatestFieldToVehicle().getValue().getRotation()))){
+        if (Math.abs(targetOrientation.distance(getLatestFieldToVehicle().getValue().getRotation())) > Math
+                .abs(secondTargetOrientation.distance(getLatestFieldToVehicle().getValue().getRotation()))) {
             targetOrientation = secondTargetOrientation;
         }
         return targetOrientation;
     }
 
-    public synchronized Optional<Pose2d> getRobotScoringPosition(Optional<ShooterAimingParameters> aimingParameters, Rotation2d orientation, Translation2d endTranslation){
+    public synchronized Optional<Pose2d> getRobotScoringPosition(Optional<ShooterAimingParameters> aimingParameters,
+            Rotation2d orientation, Translation2d endTranslation) {
         List<Pose2d> targetPositions = getCaptureTimeFieldToGoal();
-		if(targetPositions.size() >= minimumTargetQuantity && aimingParameters.isPresent()){
+        if (targetPositions.size() >= minimumTargetQuantity && aimingParameters.isPresent()) {
             Translation2d targetPosition = targetPositions.get(primaryTargetIndex).getTranslation();
-            SmartDashboard.putNumberArray("Path Pose", new double[]{targetPosition.x(), targetPosition.y(), aimingParameters.get().getTargetOrientation().getDegrees(), 0.0}); 
-			Pose2d orientedTargetPosition = new Pose2d(targetPosition, orientation).transformBy(Pose2d.fromTranslation(new Translation2d(-Constants.kRobotHalfLength, 0.0)));
+            SmartDashboard.putNumberArray("Path Pose", new double[] { targetPosition.x(), targetPosition.y(),
+                    aimingParameters.get().getTargetOrientation().getDegrees(), 0.0 });
+            Pose2d orientedTargetPosition = new Pose2d(targetPosition, orientation)
+                    .transformBy(Pose2d.fromTranslation(new Translation2d(-Constants.kRobotHalfLength, 0.0)));
             Pose2d robotScoringPosition = orientedTargetPosition.transformBy(Pose2d.fromTranslation(endTranslation));
-            
+
             return Optional.of(robotScoringPosition);
         }
         return Optional.empty();
     }
 
-    public synchronized Optional<Pose2d> getOrientedTargetPosition(Optional<ShooterAimingParameters> aimingParameters){
+    public synchronized Optional<Pose2d> getOrientedTargetPosition(Optional<ShooterAimingParameters> aimingParameters) {
         List<Pose2d> targetPositions = getCaptureTimeFieldToGoal();
-		if(targetPositions.size() >= minimumTargetQuantity && aimingParameters.isPresent()){
+        if (targetPositions.size() >= minimumTargetQuantity && aimingParameters.isPresent()) {
             Translation2d targetPosition = targetPositions.get(primaryTargetIndex).getTranslation();
-            SmartDashboard.putNumberArray("Path Pose", new double[]{targetPosition.x(), targetPosition.y(), aimingParameters.get().getTargetOrientation().getDegrees(), 0.0}); 
-			Pose2d orientedTargetPosition = new Pose2d(targetPosition, aimingParameters.get().getTargetOrientation());
-            
+            SmartDashboard.putNumberArray("Path Pose", new double[] { targetPosition.x(), targetPosition.y(),
+                    aimingParameters.get().getTargetOrientation().getDegrees(), 0.0 });
+            Pose2d orientedTargetPosition = new Pose2d(targetPosition, aimingParameters.get().getTargetOrientation());
+
             return Optional.of(orientedTargetPosition);
         }
         return Optional.empty();
     }
-    
-    public synchronized void resetRobotPosition(Translation2d targetPosition){
-    	List<TrackReport> reports = goal_tracker_.getTracks();
+
+    public synchronized void resetRobotPosition(Translation2d targetPosition) {
+        List<TrackReport> reports = goal_tracker_.getTracks();
         if (reports.size() >= minimumTargetQuantity) {
             TrackReport report = reports.get(primaryTargetIndex);
             Translation2d robotFrameToFieldFrame = report.field_to_goal.inverse().translateBy(targetPosition);
-            if(robotFrameToFieldFrame.norm() <= 5.0){
-            	Swerve.getInstance().resetPosition(new Pose2d(Swerve.getInstance().getPose().getTranslation().translateBy(robotFrameToFieldFrame), Swerve.getInstance().getPose().getRotation()));
-            	System.out.println("Coordinates corrected by " + robotFrameToFieldFrame.norm() + " inches");
-            }else{
-            	System.out.println("Coordinate correction too large: " + robotFrameToFieldFrame.norm());
+            if (robotFrameToFieldFrame.norm() <= 5.0) {
+                Swerve.getInstance()
+                        .resetPosition(new Pose2d(
+                                Swerve.getInstance().getPose().getTranslation().translateBy(robotFrameToFieldFrame),
+                                Swerve.getInstance().getPose().getRotation()));
+                System.out.println("Coordinates corrected by " + robotFrameToFieldFrame.norm() + " inches");
+            } else {
+                System.out.println("Coordinate correction too large: " + robotFrameToFieldFrame.norm());
             }
-        }else{
-        	System.out.println("Vision did not detect target");
+        } else {
+            System.out.println("Vision did not detect target");
         }
     }
-    
+
     public synchronized List<Pose2d> getCaptureTimeFieldToGoal() {
         List<Pose2d> rv = new ArrayList<>();
         for (TrackReport report : goal_tracker_.getTracks()) {
@@ -263,44 +297,43 @@ public class RobotState {
         return rv;
     }
 
-    public synchronized void clearVisionTargets(){
+    public synchronized void clearVisionTargets() {
         goal_tracker_.clearTracks();
     }
 
-    public synchronized void feignVisionTargets(){
-        List<Translation2d> fakeTargets = Arrays.asList(
-            new Translation2d(100.0, 50.0),
-            new Translation2d(100.0, 58.0),
-            new Translation2d(100.0, 54.0)
-        );
+    public synchronized void feignVisionTargets() {
+        List<Translation2d> fakeTargets = Arrays.asList(new Translation2d(100.0, 50.0), new Translation2d(100.0, 58.0),
+                new Translation2d(100.0, 54.0));
         goal_tracker_.update(Timer.getFPGATimestamp(), fakeTargets);
     }
-    
+
     public synchronized void addFieldToVehicleObservation(double timestamp, Pose2d observation) {
         field_to_vehicle_.put(new InterpolatingDouble(timestamp), observation);
     }
-    
+
     public synchronized double getDistanceDriven() {
         return distance_driven_;
     }
-    
-    public void outputToSmartDashboard(){
+
+    public void outputToSmartDashboard() {
         SmartDashboard.putBoolean("Sees Target", seesTarget);
 
-        /*List<Pose2d> targets = getCaptureTimeFieldToGoal();
-        if(targets.size() >= minimumTargetQuantity){
-            Translation2d targetPosition = targets.get(primaryTargetIndex).getTranslation();
-            SmartDashboard.putNumberArray("Path Pose", new double[]{targetPosition.x(), targetPosition.y(), 0.0, 0.0}); 
-        }*/
+        /*
+         * List<Pose2d> targets = getCaptureTimeFieldToGoal(); if(targets.size() >=
+         * minimumTargetQuantity){ Translation2d targetPosition =
+         * targets.get(primaryTargetIndex).getTranslation();
+         * SmartDashboard.putNumberArray("Path Pose", new double[]{targetPosition.x(),
+         * targetPosition.y(), 0.0, 0.0}); }
+         */
 
-        /*Optional<ShooterAimingParameters> aim = getAimingParameters();
-            if (aim.isPresent()) {
-                SmartDashboard.putNumber("goal_range", aim.get().getRange());
-            } else {
-                SmartDashboard.putNumber("goal_range", 0.0);
-            }*/
+        /*
+         * Optional<ShooterAimingParameters> aim = getAimingParameters(); if
+         * (aim.isPresent()) { SmartDashboard.putNumber("goal_range",
+         * aim.get().getRange()); } else { SmartDashboard.putNumber("goal_range", 0.0);
+         * }
+         */
 
-        if(Constants.kDebuggingOutput){
+        if (Constants.kDebuggingOutput) {
             List<Pose2d> poses = getCaptureTimeFieldToGoal();
             for (Pose2d pose : poses) {
                 // Only output first goal
@@ -309,7 +342,7 @@ public class RobotState {
 
                 break;
             }
-            Optional<ShooterAimingParameters> aiming_params = /*getCachedAimingParameters();*/getAimingParameters();
+            Optional<ShooterAimingParameters> aiming_params = /* getCachedAimingParameters(); */getAimingParameters();
             if (aiming_params.isPresent()) {
                 SmartDashboard.putNumber("goal_range", aiming_params.get().getRange());
                 SmartDashboard.putNumber("goal_theta", aiming_params.get().getRobotToGoal().getDegrees());
